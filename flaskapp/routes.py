@@ -1,12 +1,15 @@
 from flask import render_template, flash, redirect, url_for, request
 from flaskapp import app, db
-from flaskapp.models import BlogPost, IpView, Day
+from flaskapp.models import BlogPost, IpView, Day, UkData # accessing the Database
 from flaskapp.forms import PostForm
 import datetime
-
+from sqlalchemy import inspect
 import pandas as pd
 import json
 import plotly
+#from sklearn.preprocessing import StandardScaler
+#from sklearn.impute import SimpleImputer
+#from sklearn.cluster import KMeans
 import plotly.express as px
 
 
@@ -71,3 +74,20 @@ def before_request_func():
         db.session.add(ip_view)  # insert into the ip_view table
 
     db.session.commit()  # commit all the changes to the database
+
+# get the data to see what is in there
+# CSS styling is by GPT
+@app.route('/data')
+def data():
+    data = UkData.query.limit(10).all()  
+    mapper = inspect(UkData)
+    _ = [column.key for column in mapper.columns]
+    return render_template('my_table.html', data=data)
+
+# route to my first plot
+#@app.route('/plot1')
+
+
+# route to my second plot
+# @app.route('/plot2')
+# def plot2(): # everything below needs to be changed 
