@@ -4,13 +4,13 @@ from flaskapp.models import BlogPost, IpView, Day, UkData # accessing the Databa
 from flaskapp.forms import PostForm
 import datetime
 from sqlalchemy import inspect
+import plotly.express as px
 import pandas as pd
 import json
 import plotly
-#from sklearn.preprocessing import StandardScaler
-#from sklearn.impute import SimpleImputer
-#from sklearn.cluster import KMeans
-import plotly.express as px
+import seaborn as sns
+from plotly.subplots import make_subplots
+import plotly.graph_objects as go
 
 
 # Route for the home page, which is where the blog posts will be shown
@@ -84,10 +84,129 @@ def data():
     _ = [column.key for column in mapper.columns]
     return render_template('my_table.html', data=data)
 
-# route to my first plot
-#@app.route('/plot1')
+# route to my first plot: Green Party support by constituency
+@app.route('/green_vote')
+def green_vote():
+    # get the data 
+    data = UkData.query.filter_by(country = "England").with_entities( #just data for england 
+        UkData.constituency_name,
+        UkData.GreenVote19,
+        UkData.TotalVote19).all()
+
+
+    df = pd.DataFrame(data, columns=["Constituency", "GreenVote", "TotalVote"])
+
+
+    df["Green Vote Share"] = (df["GreenVote"]/df["TotalVote"]) * 100
+
+    # sort graph and create sub-dfs which only include biggest & smallest observations
+    df_low  = df.nsmallest(10, columns="Green Vote Share")
+    df_high = df.nlargest(10, columns="Green Vote Share").sort_values(by="Green Vote Share", ascending=True)
+
+    # necessary to ensure the graphs are on the same colour scale later 
+    df = df.sort_values(by="Green Vote Share", ascending=True)
+    vmin = df["Green Vote Share"].min()
+    vmax = df["Green Vote Share"].max()
+
+
+    # make plot 
+    fig = make_subplots(
+        rows=1, cols=2,
+        subplot_titles=("10 Worst Green-share Constituencies",
+                        "10 Best Green-share Constituencies")
+    )
+
+
+    # col 1
+    fig.add_trace(
+        go.Bar(
+            x=df_low["Constituency"],
+            y=df_low["Green Vote Share"],
+            showlegend=False, # has to be disabled
+            marker=dict(color=df_low["Green Vote Share"],
+                        colorscale=px.colors.sequential.Magma,
+                        cmin=vmin,               # ← same minimum
+                        cmax=vmax                # ← same maximum
+        ),
+
+            # Custom hover-box: Constituency name and Vote share as NN,NN%
+            hovertemplate=(
+                "%{x}<br>"
+                "Green share: %{y:.2f}%<extra></extra>" # extra extra dops the weird "trace name" box
+            )
+        ),
+        row=1, col=1
+    )
+
+    # col 2
+    fig.add_trace(
+        go.Bar(
+            x=df_high["Constituency"],
+            y=df_high["Green Vote Share"],
+            showlegend=False,
+            marker=dict(color=df_high["Green Vote Share"],
+                        colorscale=px.colors.sequential.Magma,
+                        cmin=vmin,               # ← same minimum
+                        cmax=vmax                # ← same maximum
+        ),
+            hovertemplate=(
+                "%{x}<br>"
+                "Green share: %{y:.2f}%<extra></extra>"
+            )
+        ),
+        row=1, col=2
+    )
+
+    # tidy up axes & layout
+    fig.update_layout(
+        title_text="Green Vote Share in the 10 Weakest and Strongest Constituencies (2019)",
+        height=600, width=1000,
+        margin=dict(t=100),
+    )
+    
+    
+    fig.update_xaxes(tickangle=-45, title_text="Constituency", row=1, col=1)
+    fig.update_xaxes(tickangle=-45, title_text="Constituency", row=1, col=2)
+    fig.update_yaxes(title_text="Green Vote Share (%)", row=1, col=1)
+    fig.update_yaxes(title_text="Green Vote Share (%)", row=1, col=2)
+
+    # it HAS to be HTML - JSON ruins the graph 
+    fig_html= fig.to_html(full_html=False)
+
+    # Pass the JSON to the HTML template
+    return render_template('green_vote.html', title='Green Party Vote Share 2019', fig_html=fig_html)
 
 
 # route to my second plot
-# @app.route('/plot2')
-# def plot2(): # everything below needs to be changed 
+@app.route('/retired_impact')
+def retired_impact(): # everything below needs to be changed 
+    # get the data 
+    data = UkData.query.filter_by(country = "England").with_entities( #just data for england 
+        UkData.constituency_name,
+        UkData.GreenVote19,
+        UkData.TotalVote19,
+        UkData.c11Retired).all()
+    
+    df = pd.DataFrame(data, columns=["Constituency", "GreenVote", "TotalVote", "Retirees"])
+
+    df["GreenVoteShare"] = df["GreenVote"]/df["TotalVote"] * 100
+
+    fig_2 = px.scatter(df, x="Retirees", y="GreenVoteShare",
+                      title = "Correlation of Green Support with Retiree Share in Population",
+                      color="Retirees", color_continuous_scale=px.colors.sequential.Magma,
+                      labels = {"Retirees": "Population Share of Retirees in %",
+                                "GreenVoteShare": "Vote Share of Greens"},
+                                hover_data={"Constituency": True}) #so Constituency appears in the hover box 
+    
+    fig_2.update_traces(
+    hovertemplate=(
+        "Constituency: %{customdata[0]}<br>"
+        "Retiree Share: %{x:.2f}%<br>"
+        "Green Vote Share: %{y:.2f}%<extra></extra>"
+    )
+)
+
+    fig_2.update_layout(coloraxis_colorbar=dict(title="Retiree Share (%)")) 
+
+    fig_2_html= fig_2.to_html(full_html=False)
+    return render_template("retired_impact.html", fig_2_html=fig_2_html)
