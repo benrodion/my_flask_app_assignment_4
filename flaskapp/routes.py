@@ -125,8 +125,8 @@ def green_vote():
             showlegend=False, # has to be disabled
             marker=dict(color=df_low["Green Vote Share"],
                         colorscale=px.colors.sequential.Magma,
-                        cmin=vmin,               # ← same minimum
-                        cmax=vmax                # ← same maximum
+                        cmin=vmin,               # ensures that both plots have the same colour scale 
+                        cmax=vmax                
         ),
 
             # Custom hover-box: Constituency name and Vote share as NN,NN%
@@ -146,8 +146,8 @@ def green_vote():
             showlegend=False,
             marker=dict(color=df_high["Green Vote Share"],
                         colorscale=px.colors.sequential.Magma,
-                        cmin=vmin,               # ← same minimum
-                        cmax=vmax                # ← same maximum
+                        cmin=vmin,               # same minimum as in fig 1 
+                        cmax=vmax                # same maximum as in fig 1
         ),
             hovertemplate=(
                 "%{x}<br>"
